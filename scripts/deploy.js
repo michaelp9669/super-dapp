@@ -14,12 +14,12 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const SuperAppToken = await hre.ethers.getContractFactory("SuperAppToken");
-  const superAppToken = await SuperAppToken.deploy();
+  const SuperToken = await hre.ethers.getContractFactory("SuperToken");
+  const superToken = await SuperToken.deploy();
 
-  await superAppToken.deployed();
+  await superToken.deployed();
 
-  console.log("SuperAppToken deployed to:", superAppToken.address);
+  console.log("SuperToken deployed to:", superToken.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
