@@ -13,11 +13,11 @@ contract MultiSigWallet {
         uint8 confirmationCount;
     }
 
-    IERC20 private _tokenContract;
-    address[] private _owners;
-    uint256 private _requiredConfirmationCount;
+    IERC20 public tokenContract;
+    address[] public owners;
+    uint256 public requiredConfirmationCount;
     mapping(address => bool) public isOwner;
-    mapping(uint256 => mapping(address => bool)) private _isConfirmed;
+    mapping(uint256 => mapping(address => bool)) public isConfirmed;
 
     Transaction[] public transactions;
 
@@ -41,8 +41,8 @@ contract MultiSigWallet {
 
     modifier txExists(uint256 txIndex) {
         require(
-            !transactions[txIndex].executed,
-            "MultiSigWallet: tx already executed"
+            txIndex < transactions.length,
+            "MultiSigWallet: tx does not exist"
         );
         _;
     }
@@ -57,35 +57,35 @@ contract MultiSigWallet {
 
     modifier notConfirmed(uint256 txIndex) {
         require(
-            !_isConfirmed[txIndex][msg.sender],
+            !isConfirmed[txIndex][msg.sender],
             "MultiSigWallet: tx already confirmed"
         );
         _;
     }
 
     constructor(
-        address[] memory owners,
-        uint256 requiredConfirmationCount,
-        address tokenContract
+        address[] memory _owners,
+        uint256 _requiredConfirmationCount,
+        address _tokenContract
     ) {
-        require(owners.length > 0, "MultiSigWallet: owners required");
+        require(_owners.length > 0, "MultiSigWallet: owners required");
         require(
-            requiredConfirmationCount > 0 &&
-                requiredConfirmationCount <= owners.length,
+            _requiredConfirmationCount > 0 &&
+                _requiredConfirmationCount <= _owners.length,
             "MultiSigWallet: invalid number of required confirmations"
         );
 
-        for (uint256 i = 0; i < owners.length; i++) {
-            require(owners[i] != address(0), "MultiSigWallet: invalid owner");
-            require(!isOwner[owners[i]], "MultiSigWallet: owner not unique");
+        for (uint256 i = 0; i < _owners.length; i++) {
+            require(_owners[i] != address(0), "MultiSigWallet: invalid owner");
+            require(!isOwner[_owners[i]], "MultiSigWallet: owner not unique");
 
-            isOwner[owners[i]] = true;
-            _owners.push(owners[i]);
+            isOwner[_owners[i]] = true;
+            owners.push(_owners[i]);
         }
 
-        _requiredConfirmationCount = requiredConfirmationCount;
+        requiredConfirmationCount = _requiredConfirmationCount;
 
-        _tokenContract = IERC20(tokenContract);
+        tokenContract = IERC20(_tokenContract);
     }
 
     receive() external payable {
@@ -111,7 +111,7 @@ contract MultiSigWallet {
 
         emit TransactionSubmitted(
             msg.sender,
-            transactions.length,
+            transactions.length - 1,
             to,
             value,
             data,
@@ -128,7 +128,7 @@ contract MultiSigWallet {
     {
         Transaction storage transaction = transactions[txIndex];
         transaction.confirmationCount += 1;
-        _isConfirmed[txIndex][msg.sender] = true;
+        isConfirmed[txIndex][msg.sender] = true;
 
         emit TransactionConfirmed(msg.sender, txIndex);
     }
@@ -142,7 +142,7 @@ contract MultiSigWallet {
         Transaction storage transaction = transactions[txIndex];
 
         require(
-            transaction.confirmationCount >= _requiredConfirmationCount,
+            transaction.confirmationCount >= requiredConfirmationCount,
             "MultiSigWallet: not enough confirmations"
         );
 
@@ -150,10 +150,7 @@ contract MultiSigWallet {
 
         bool success;
         if (transaction.isERC20Transaction) {
-            success = _tokenContract.transfer(
-                transaction.to,
-                transaction.value
-            );
+            success = tokenContract.transfer(transaction.to, transaction.value);
         } else {
             (success, ) = transaction.to.call{value: transaction.value}(
                 transaction.data
@@ -174,18 +171,18 @@ contract MultiSigWallet {
         Transaction storage transaction = transactions[txIndex];
 
         require(
-            _isConfirmed[txIndex][msg.sender],
+            isConfirmed[txIndex][msg.sender],
             "MultiSigWallet: tx not confirmed"
         );
 
         transaction.confirmationCount -= 1;
-        _isConfirmed[txIndex][msg.sender] = false;
+        isConfirmed[txIndex][msg.sender] = false;
 
         emit ConfirmationRevoked(msg.sender, txIndex);
     }
 
     function getOwners() external view returns (address[] memory) {
-        return _owners;
+        return owners;
     }
 
     function getTransactionCount() public view returns (uint256) {

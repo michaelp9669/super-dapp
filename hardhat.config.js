@@ -27,6 +27,7 @@ module.exports = {
   projectParams: {
     TOKEN_NAME: "SuperToken",
     TOKEN_SYMBOL: "ST",
+    TOTAL_SUPPLY: 1000000000,
   },
   networks: {
     ropsten: {

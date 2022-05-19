@@ -4,7 +4,6 @@ const { ethers, config } = require("hardhat");
 describe("SuperToken Contract", () => {
   let superTokenContract;
   let owner;
-  const TOTAL_SUPPLY = ethers.utils.parseEther("1000000000");
   const params = config.projectParams;
 
   describe("constructor", () => {
@@ -12,7 +11,8 @@ describe("SuperToken Contract", () => {
       const SuperToken = await ethers.getContractFactory("SuperToken");
       superTokenContract = await SuperToken.deploy(
         params.TOKEN_NAME,
-        params.TOKEN_SYMBOL
+        params.TOKEN_SYMBOL,
+        params.TOTAL_SUPPLY
       );
 
       [owner] = await ethers.getSigners();
@@ -31,7 +31,9 @@ describe("SuperToken Contract", () => {
     });
 
     it("should set the right totalSupply", async () => {
-      expect(await superTokenContract.totalSupply()).to.equal(TOTAL_SUPPLY);
+      expect(await superTokenContract.totalSupply()).to.equal(
+        ethers.utils.parseEther(params.TOTAL_SUPPLY.toString())
+      );
     });
 
     it("should assign the total supply of tokens to the owner", async () => {
