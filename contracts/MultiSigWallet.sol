@@ -13,7 +13,7 @@ contract MultiSigWallet {
         uint8 confirmationCount;
     }
 
-    IERC20 public tokenContract;
+    IERC20 public immutable tokenContract;
     address[] public owners;
     uint256 public requiredConfirmationCount;
     mapping(address => bool) public isOwner;
