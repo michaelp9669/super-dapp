@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "hardhat/console.sol";
 
 contract CommittingLaunchpad is Ownable, Pausable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -23,13 +24,13 @@ contract CommittingLaunchpad is Ownable, Pausable {
     }
 
     uint256 public constant SECOND_PER_DAY = 60 * 60 * 24;
-    uint256 public count;
+    uint256 public launchpadCount;
     mapping(uint256 => Launchpad) public launchpads;
     mapping(uint256 => EnumerableMap.AddressToUintMap)
         private _committedAmountOf;
     mapping(uint256 => mapping(address => uint256))
         public averageCommittedAmountOf;
-    mapping(uint256 => mapping(address => uint256)) allocations;
+    mapping(uint256 => mapping(address => uint256)) public allocations;
 
     event Launched();
     event Committed(uint256 amount);
@@ -39,14 +40,14 @@ contract CommittingLaunchpad is Ownable, Pausable {
     modifier whenHappening(uint256 id) {
         Launchpad storage launchpad = launchpads[id];
 
-        require(
-            block.timestamp >= launchpad.startTime,
-            "CommittingLaunchpad: launchpad not started"
-        );
-        require(
-            block.timestamp <= launchpad.endTime,
-            "CommittingLaunchpad: launchpad ended"
-        );
+        // require(
+        //     block.timestamp >= launchpad.startTime,
+        //     "CommittingLaunchpad: launchpad not started"
+        // );
+        // require(
+        //     block.timestamp <= launchpad.endTime,
+        //     "CommittingLaunchpad: launchpad ended"
+        // );
 
         _;
     }
@@ -64,6 +65,14 @@ contract CommittingLaunchpad is Ownable, Pausable {
 
     receive() external payable {}
 
+    function committedAmountOf(uint256 id, address account)
+        public
+        view
+        returns (uint256)
+    {
+        return _committedAmountOf[id].get(account);
+    }
+
     function launch(
         address tokenContract,
         uint48 startTime,
@@ -72,25 +81,30 @@ contract CommittingLaunchpad is Ownable, Pausable {
         uint256 offeredAmount,
         uint256 initialPrice
     ) external onlyOwner {
+        // require(
+        //     startTime >= block.timestamp,
+        //     "CommittingLaunchpad: startTime must be >= now"
+        // );
+        // require(
+        //     endTime >= startTime,
+        //     "CommittingLaunchpad: endTime must be >= startTime"
+        // );
+        // require(
+        //     startTime >= block.timestamp + 1 days,
+        //     "CommittingLaunchpad: startTime must be >= min duration"
+        // );
+        // require(
+        //     endTime <= block.timestamp + 90 days,
+        //     "CommittingLaunchpad: endTime must be <= max duration"
+        // );
+        
         require(
-            startTime >= block.timestamp,
-            "CommittingLaunchpad: startTime must be >= now"
-        );
-        require(
-            endTime >= startTime,
-            "CommittingLaunchpad: endTime must be >= startTime"
-        );
-        require(
-            startTime >= block.timestamp + 1 days,
-            "startTime must be >= min duration"
-        );
-        require(
-            endTime <= block.timestamp + 90 days,
-            "endTime must be <= max duration"
+            hardCap <= offeredAmount,
+            "CommittingLaunchpad: hardCap must be less than or equal offeredAmount"
         );
 
-        count += 1;
-        launchpads[count] = Launchpad({
+        launchpadCount += 1;
+        launchpads[launchpadCount] = Launchpad({
             tokenContract: IERC20(tokenContract),
             startTime: startTime,
             endTime: endTime,
@@ -117,16 +131,18 @@ contract CommittingLaunchpad is Ownable, Pausable {
         external
         payable
         whenNotPaused
-        whenHappening(id)
+        /// whenHappening(id)
         notZeroAmount(msg.value)
     {
         Launchpad storage launchpad = launchpads[id];
         launchpad.totalCommitted += msg.value;
 
-        if (_committedAmountOf[id].get(msg.sender) == 0) {
-            launchpad.participantCount += 1;
-            averageCommittedAmountOf[id][msg.sender] += msg.value;
-        } else {
+        (
+            bool notFirstCommit,
+            uint256 currentCommittedAmount
+        ) = _committedAmountOf[id].tryGet(msg.sender);
+
+        if (notFirstCommit) {
             uint256 daysOfDuration = _daysFromTimestamp(
                 launchpad.endTime - launchpad.startTime
             );
@@ -135,15 +151,18 @@ contract CommittingLaunchpad is Ownable, Pausable {
             );
 
             averageCommittedAmountOf[id][msg.sender] =
-                (_committedAmountOf[id].get(msg.sender) *
+                (currentCommittedAmount *
                     (daysOfDuration - 1) +
-                    (_committedAmountOf[id].get(msg.sender) + msg.value) *
+                    (currentCommittedAmount + msg.value) *
                     (daysOfDuration - currentDay - 1)) /
                 daysOfDuration;
+        } else {
+            launchpad.participantCount += 1;
+            averageCommittedAmountOf[id][msg.sender] = msg.value;
         }
         _committedAmountOf[id].set(
             msg.sender,
-            _committedAmountOf[id].get(msg.sender) + msg.value
+            currentCommittedAmount + msg.value
         );
     }
 
@@ -153,8 +172,14 @@ contract CommittingLaunchpad is Ownable, Pausable {
         whenHappening(id)
         notZeroAmount(amount)
     {
+        (
+            bool notFirstCommit,
+            uint256 currentCommittedAmount
+        ) = _committedAmountOf[id].tryGet(msg.sender);
+
+        require(notFirstCommit, "CommittingLaunchpad: not a participant");
         require(
-            amount <= _committedAmountOf[id].get(msg.sender),
+            amount <= currentCommittedAmount,
             "CommittingLaunchpad: Exceeded committed amount"
         );
 
@@ -172,48 +197,46 @@ contract CommittingLaunchpad is Ownable, Pausable {
             );
 
             averageCommittedAmountOf[id][msg.sender] =
-                (_committedAmountOf[id].get(msg.sender) *
+                (currentCommittedAmount *
                     (daysOfDuration - 1) +
-                    (_committedAmountOf[id].get(msg.sender) - amount) *
+                    (currentCommittedAmount - amount) *
                     (daysOfDuration - currentDay - 1)) /
                 daysOfDuration;
         }
-        _committedAmountOf[id].set(
-            msg.sender,
-            _committedAmountOf[id].get(msg.sender) - amount
-        );
+        _committedAmountOf[id].set(msg.sender, currentCommittedAmount - amount);
         (bool sent, ) = payable(msg.sender).call{value: amount}("");
 
         require(sent, "CommittingLaunchpad: failed to transfer Ether");
     }
 
-    function calculateAllocations(uint256 id) external onlyOwner whenEnded(id) {
+    function calculateAllocations(uint256 id) external onlyOwner {
         Launchpad storage launchpad = launchpads[id];
 
         uint256 remainingCap;
         uint256 exceededCount;
-        for (uint256 i = 0; i < _committedAmountOf[id].length(); i++) {
+        for (uint256 i = 0; i < launchpad.participantCount; i++) {
             (address participant, ) = _committedAmountOf[id].at(i);
-            uint256 individualCap = (averageCommittedAmountOf[id][participant] /
-                launchpad.totalCommitted) * launchpad.offeredAmount;
+
+            /// @note percentage of committed over totalCommitted x offered amount for the sale
+            uint256 individualCap = (averageCommittedAmountOf[id][participant] *
+                launchpad.offeredAmount) / launchpad.totalCommitted;
 
             if (individualCap > launchpad.hardCap) {
-                remainingCap += launchpad.hardCap - individualCap;
+                remainingCap += individualCap - launchpad.hardCap;
                 exceededCount += 1;
-                allocations[id][participant] =
-                    launchpad.hardCap -
-                    individualCap;
+                allocations[id][participant] = launchpad.hardCap;
             } else {
                 allocations[id][participant] = individualCap;
             }
         }
 
-        for (uint256 i = 0; i < _committedAmountOf[id].length(); i++) {
+        for (uint256 i = 0; i < launchpad.participantCount; i++) {
             (address participant, ) = _committedAmountOf[id].at(i);
+
             if (allocations[id][participant] != launchpad.hardCap) {
                 allocations[id][participant] +=
                     remainingCap /
-                    (_committedAmountOf[id].length() - exceededCount);
+                    (launchpad.participantCount - exceededCount);
             }
         }
     }

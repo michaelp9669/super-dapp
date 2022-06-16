@@ -1,7 +1,14 @@
 const { expect } = require("chai");
 const { ethers, config, waffle } = require("hardhat");
 
-// const provider = waffle.provider;
+const provider = waffle.provider;
+
+async function currentBlockTimestamp() {
+  const blockNumber = await provider.getBlockNumber();
+  const block = await provider.getBlock(blockNumber);
+
+  return block.timestamp;
+}
 
 describe("CommittingLaunchpad Contract", () => {
   let committingLaunchpadContract;
@@ -46,6 +53,55 @@ describe("CommittingLaunchpad Contract", () => {
             100000000000000
           )
       ).revertedWith("Ownable: caller is not the owner");
+    });
+  });
+
+  describe("commit", () => {
+    before(setupBefore);
+
+    it("should", async () => {
+      await committingLaunchpadContract.launch(
+        tokenContract.address,
+        await currentBlockTimestamp(),
+        (await currentBlockTimestamp()) + 7 * 60 * 60 * 24,
+        50000000,
+        50000000,
+        100000000000000
+      );
+
+      await committingLaunchpadContract
+        .connect(addr1)
+        .commit(1, { value: ethers.utils.parseEther("0.001") });
+
+      await committingLaunchpadContract
+        .connect(addr1)
+        .commit(1, { value: ethers.utils.parseEther("0.001") });
+
+      await committingLaunchpadContract
+        .connect(addr2)
+        .commit(1, { value: ethers.utils.parseEther("0.001") });
+
+      const test = await committingLaunchpadContract.committedAmountOf(
+        1,
+        addr1.address
+      );
+
+      const aaa = await committingLaunchpadContract.calculateAllocations(1);
+
+      console.log("aaa", aaa);
+
+      const allocation1 = await committingLaunchpadContract.allocations(
+        1,
+        addr1.address
+      );
+
+      const allocation2 = await committingLaunchpadContract.allocations(
+        1,
+        addr2.address
+      );
+
+      console.log("allocation1", allocation1);
+      console.log("allocation2", allocation2);
     });
   });
 });
