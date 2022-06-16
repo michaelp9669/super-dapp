@@ -3,9 +3,9 @@
 - [x] MultiSig Wallet
 - [x] SuperToken
 - [x] CommittingLaunchpad
-- [] Staking
-- [] Chainlink Oracle
-- [] AMM
+- [ ] Staking
+- [ ] Chainlink Oracle
+- [ ] AMM
 
 # Advanced Sample Hardhat Project
 
