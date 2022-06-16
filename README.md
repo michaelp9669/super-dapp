@@ -1,11 +1,11 @@
 # Super DApp
 
-- MultiSig Wallet
-- SuperToken
-- CommittingLaunchpad
-- Staking
-- Chainlink Oracle
-- AMM
+- [x] MultiSig Wallet
+- [x] SuperToken
+- [x] CommittingLaunchpad
+- [] Staking
+- [] Chainlink Oracle
+- [] AMM
 
 # Advanced Sample Hardhat Project
 
