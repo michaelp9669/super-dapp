@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 contract MultiSigWallet {
     struct Transaction {
         uint256 value;
         bytes data;
         address to;
         bool executed;
-        bool isERC20Transaction;
         uint8 confirmationCount;
     }
 
-    IERC20 public immutable tokenContract;
     address[] public owners;
     uint256 public requiredConfirmationCount;
     mapping(address => bool) public isOwner;
@@ -27,8 +23,7 @@ contract MultiSigWallet {
         uint256 indexed txIndex,
         address indexed to,
         uint256 value,
-        bytes data,
-        bool isERC20Transaction
+        bytes data
     );
     event TransactionConfirmed(address indexed owner, uint256 indexed txIndex);
     event ConfirmationRevoked(address indexed owner, uint256 indexed txIndex);
@@ -84,8 +79,6 @@ contract MultiSigWallet {
         }
 
         requiredConfirmationCount = _requiredConfirmationCount;
-
-        tokenContract = IERC20(_tokenContract);
     }
 
     receive() external payable {
@@ -95,8 +88,7 @@ contract MultiSigWallet {
     function submitTransaction(
         address to,
         uint256 value,
-        bytes memory data,
-        bool isERC20Transaction
+        bytes memory data
     ) public onlyOwner {
         transactions.push(
             Transaction({
@@ -104,7 +96,6 @@ contract MultiSigWallet {
                 data: data,
                 to: to,
                 executed: false,
-                isERC20Transaction: isERC20Transaction,
                 confirmationCount: 0
             })
         );
@@ -114,8 +105,7 @@ contract MultiSigWallet {
             transactions.length - 1,
             to,
             value,
-            data,
-            isERC20Transaction
+            data
         );
     }
 
@@ -148,14 +138,9 @@ contract MultiSigWallet {
 
         transaction.executed = true;
 
-        bool success;
-        if (transaction.isERC20Transaction) {
-            success = tokenContract.transfer(transaction.to, transaction.value);
-        } else {
-            (success, ) = transaction.to.call{value: transaction.value}(
-                transaction.data
-            );
-        }
+        (bool success, ) = transaction.to.call{value: transaction.value}(
+            transaction.data
+        );
 
         require(success, "MultiSigWallet: tx failed");
 
