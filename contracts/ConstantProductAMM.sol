@@ -23,6 +23,19 @@ contract ConstantProductAMM {
         totalShares += amount;
     }
 
+    function _asmMintShares(address to, uint256 amount) private {
+        assembly {
+            mstore(0x0, to)
+            mstore(0x20, sharesOf.slot)
+            let location := keccak256(0x0, 64)
+            sstore(location, add(sload(location), amount))
+        }
+
+        assembly {
+            sstore(totalShares.slot, add(sload(totalShares.slot), amount))
+        }
+    }
+
     function _burnShares(address to, uint256 amount) private {
         sharesOf[to] -= amount;
         totalShares -= amount;
@@ -31,6 +44,13 @@ contract ConstantProductAMM {
     function _updateReserves(uint256 _reserve0, uint256 _reserve1) private {
         reserve0 = _reserve0;
         reserve1 = _reserve1;
+    }
+
+    function _asmUpdateReserves(uint256 _reserve0, uint256 _reserve1) private {
+        assembly {
+            sstore(reserve0.slot, _reserve0)
+            sstore(reserve1.slot, _reserve1)
+        }
     }
 
     function swap(address _tokenIn, uint256 _amountIn)
